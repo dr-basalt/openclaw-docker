@@ -4,6 +4,14 @@ services:
     image: ghcr.io/phioranex/openclaw-docker:latest
     restart: "no"
     entrypoint: ["/bin/sh", "-c"]
+    volumes:
+      - openclaw-data:/home/node/.openclaw
+      - openclaw-workspace:/home/node/.openclaw/workspace
+    environment:
+      - NODE_ENV=production
+      - OPENCLAW_SKIP_SERVICE_CHECK=true
+      - OPENCLAW_AUTH_CHOICE=${OPENCLAW_AUTH_CHOICE}
+      - OPENCLAW_API_KEY=${OPENCLAW_API_KEY}
     command:
       - |
         set -e
@@ -25,16 +33,18 @@ services:
           echo "Config exists, skipping onboard."
         fi
 
-        echo "Patching controlUi config..."
-        node -e "
-          const fs = require('fs');
-          const cfg = JSON.parse(fs.readFileSync('$$CONFIG', 'utf8'));
-          cfg.gateway = cfg.gateway || {};
-          cfg.gateway.controlUi = cfg.gateway.controlUi || {};
-          cfg.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true;
-          fs.writeFileSync('$$CONFIG', JSON.stringify(cfg, null, 2));
-          console.log('controlUi patch applied.');
-        "
+        echo "Patching controlUi..."
+        cat > /tmp/patch.js << 'JSPATCH'
+        const fs = require('fs');
+        const p = '/home/node/.openclaw/openclaw.json';
+        const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+        cfg.gateway = cfg.gateway || {};
+        cfg.gateway.controlUi = cfg.gateway.controlUi || {};
+        cfg.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true;
+        fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
+        console.log('Patch OK');
+        JSPATCH
+        node /tmp/patch.js
 
   openclaw-gateway:
     image: ghcr.io/phioranex/openclaw-docker:latest
