@@ -9,14 +9,14 @@ services:
         set -e
         CONFIG=/home/node/.openclaw/openclaw.json
 
-        if [ ! -f "$CONFIG" ]; then
+        if [ ! -f "$$CONFIG" ]; then
           echo "Running onboard..."
           node /app/dist/index.js onboard \
             --non-interactive \
             --accept-risk \
             --mode local \
-            --auth-choice "$OPENCLAW_AUTH_CHOICE" \
-            --"$OPENCLAW_AUTH_CHOICE" "$OPENCLAW_API_KEY" \
+            --auth-choice "$$OPENCLAW_AUTH_CHOICE" \
+            --"$$OPENCLAW_AUTH_CHOICE" "$$OPENCLAW_API_KEY" \
             --gateway-port 18789 \
             --gateway-bind lan \
             --skip-skills \
@@ -28,21 +28,13 @@ services:
         echo "Patching controlUi config..."
         node -e "
           const fs = require('fs');
-          const cfg = JSON.parse(fs.readFileSync('$CONFIG', 'utf8'));
+          const cfg = JSON.parse(fs.readFileSync('$$CONFIG', 'utf8'));
           cfg.gateway = cfg.gateway || {};
           cfg.gateway.controlUi = cfg.gateway.controlUi || {};
           cfg.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true;
-          fs.writeFileSync('$CONFIG', JSON.stringify(cfg, null, 2));
+          fs.writeFileSync('$$CONFIG', JSON.stringify(cfg, null, 2));
           console.log('controlUi patch applied.');
         "
-    volumes:
-      - openclaw-data:/home/node/.openclaw
-      - openclaw-workspace:/home/node/.openclaw/workspace
-    environment:
-      - NODE_ENV=production
-      - OPENCLAW_SKIP_SERVICE_CHECK=true
-      - OPENCLAW_AUTH_CHOICE=${OPENCLAW_AUTH_CHOICE}
-      - OPENCLAW_API_KEY=${OPENCLAW_API_KEY}
 
   openclaw-gateway:
     image: ghcr.io/phioranex/openclaw-docker:latest
