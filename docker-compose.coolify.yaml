@@ -35,8 +35,7 @@ services:
           --"$OPENCLAW_AUTH_CHOICE" "$OPENCLAW_API_KEY" \
           --gateway-port 18789 \
           --gateway-bind auto \
-          --skip-skills \
-          --flow quickstart
+          --skip-skills
         
         echo "=== Onboard complete ==="
         cat /home/node/.openclaw/openclaw.json | grep -E '"token"|"model"' || true
