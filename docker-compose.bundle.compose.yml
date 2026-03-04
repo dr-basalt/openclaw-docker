@@ -61,19 +61,6 @@ services:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
     command: ["gateway"]
-    networks:
-      - coolify
-      - default
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=coolify
-      - traefik.http.routers.openclaw.rule=Host(`${SERVICE_FQDN_OPENCLAW_GATEWAY}`)
-      - traefik.http.routers.openclaw.entrypoints=https
-      - traefik.http.routers.openclaw.tls=true
-      - traefik.http.routers.openclaw.tls.certresolver=letsencrypt
-      - traefik.http.services.openclaw.loadbalancer.server.port=18789
-      - traefik.http.middlewares.openclaw-ws.headers.customrequestheaders.X-Forwarded-Proto=https
-      - traefik.http.routers.openclaw.middlewares=openclaw-ws
 
   socat-proxy:
     image: alpine/socat
@@ -82,11 +69,6 @@ services:
     depends_on:
       - openclaw-gateway
     command: "TCP-LISTEN:18790,fork,bind=0.0.0.0,reuseaddr TCP:127.0.0.1:18789"
-
-networks:
-  coolify:
-    external: true
-  default:
 
 volumes:
   openclaw-data:
