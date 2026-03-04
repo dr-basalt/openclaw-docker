@@ -1,50 +1,23 @@
 services:
   openclaw-init:
-    image: ghcr.io/phioranex/openclaw-docker:latest
-    restart: "no"
-    entrypoint: ["/bin/sh", "-c"]
+    image: 'ghcr.io/phioranex/openclaw-docker:latest'
+    restart: 'no'
+    entrypoint:
+      - /bin/sh
+      - '-c'
     volumes:
-      - openclaw-data:/home/node/.openclaw
-      - openclaw-workspace:/home/node/.openclaw/workspace
+      - 'openclaw-data:/home/node/.openclaw'
+      - 'openclaw-workspace:/home/node/.openclaw/workspace'
     environment:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
-      - OPENCLAW_AUTH_CHOICE=${OPENCLAW_AUTH_CHOICE}
-      - OPENCLAW_API_KEY=${OPENCLAW_API_KEY}
+      - 'OPENCLAW_AUTH_CHOICE=${OPENCLAW_AUTH_CHOICE}'
+      - 'OPENCLAW_API_KEY=${OPENCLAW_API_KEY}'
     command:
-      - |
-        set -e
-        CONFIG=/home/node/.openclaw/openclaw.json
-        if [ ! -f "$$CONFIG" ]; then
-          echo "Running onboard..."
-          node /app/dist/index.js onboard \
-            --non-interactive \
-            --accept-risk \
-            --mode local \
-            --auth-choice "$$OPENCLAW_AUTH_CHOICE" \
-            --"$$OPENCLAW_AUTH_CHOICE" "$$OPENCLAW_API_KEY" \
-            --gateway-port 18789 \
-            --gateway-bind lan \
-            --skip-skills \
-            --flow quickstart
-        else
-          echo "Config exists, skipping onboard."
-        fi
-        echo "Patching controlUi..."
-        cat > /tmp/patch.js << 'JSPATCH'
-        const fs = require('fs');
-        const p = '/home/node/.openclaw/openclaw.json';
-        const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-        cfg.gateway = cfg.gateway || {};
-        cfg.gateway.controlUi = cfg.gateway.controlUi || {};
-        cfg.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true;
-        fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
-        console.log('Patch OK');
-        JSPATCH
-        node /tmp/patch.js
+      - "set -e\nCONFIG=/home/node/.openclaw/openclaw.json\nif [ ! -f \"$$CONFIG\" ]; then\n  echo \"Running onboard...\"\n  node /app/dist/index.js onboard \\\n    --non-interactive \\\n    --accept-risk \\\n    --mode local \\\n    --auth-choice \"$$OPENCLAW_AUTH_CHOICE\" \\\n    --\"$$OPENCLAW_AUTH_CHOICE\" \"$$OPENCLAW_API_KEY\" \\\n    --gateway-port 18789 \\\n    --gateway-bind lan \\\n    --skip-skills \\\n    --flow quickstart\nelse\n  echo \"Config exists, skipping onboard.\"\nfi\necho \"Patching controlUi...\"\ncat > /tmp/patch.js << 'JSPATCH'\nconst fs = require('fs');\nconst p = '/home/node/.openclaw/openclaw.json';\nconst cfg = JSON.parse(fs.readFileSync(p, 'utf8'));\ncfg.gateway = cfg.gateway || {};\ncfg.gateway.controlUi = cfg.gateway.controlUi || {};\ncfg.gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback = true;\nfs.writeFileSync(p, JSON.stringify(cfg, null, 2));\nconsole.log('Patch OK');\nJSPATCH\nnode /tmp/patch.js\n"
 
   openclaw-gateway:
-    image: ghcr.io/phioranex/openclaw-docker:latest
+    image: 'ghcr.io/phioranex/openclaw-docker:latest'
     restart: unless-stopped
     stdin_open: true
     tty: true
@@ -52,23 +25,21 @@ services:
       openclaw-init:
         condition: service_completed_successfully
     volumes:
-      - openclaw-data:/home/node/.openclaw
-      - openclaw-workspace:/home/node/.openclaw/workspace
-    ports:
-      - "18789:18789"
-      - "18790:18790"
+      - 'openclaw-data:/home/node/.openclaw'
+      - 'openclaw-workspace:/home/node/.openclaw/workspace'
     environment:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
-    command: ["gateway"]
+    command:
+      - gateway
 
   socat-proxy:
     image: alpine/socat
     restart: unless-stopped
-    network_mode: "service:openclaw-gateway"
+    network_mode: 'service:openclaw-gateway'
     depends_on:
       - openclaw-gateway
-    command: "TCP-LISTEN:18790,fork,bind=0.0.0.0,reuseaddr TCP:127.0.0.1:18789"
+    command: 'TCP-LISTEN:18790,fork,bind=0.0.0.0,reuseaddr TCP:127.0.0.1:18789'
 
 volumes:
   openclaw-data:
