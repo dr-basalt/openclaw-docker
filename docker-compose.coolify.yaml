@@ -3,16 +3,28 @@ services:
   openclaw-init:
     image: ghcr.io/phioranex/openclaw-docker:latest
     restart: "no"
-    stdin_open: true
-    tty: true
+    stdin_open: false
+    tty: false
     volumes:
       - openclaw-data:/home/node/.openclaw
       - openclaw-workspace:/home/node/.openclaw/workspace
     environment:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
+      # Provider API keys (remplis selon ton provider dans Coolify)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     entrypoint: ["node", "/app/dist/index.js"]
-    command: ["onboard"]
+    command: >
+      onboard --non-interactive
+      --mode local
+      --auth-choice ${OPENCLAW_AUTH_CHOICE}
+      --${OPENCLAW_AUTH_CHOICE}-api-key ${OPENCLAW_API_KEY}
+      --gateway-port 18789
+      --gateway-bind all
+      --skip-skills
+      --flow quickstart
 
   openclaw-gateway:
     image: ghcr.io/phioranex/openclaw-docker:latest
