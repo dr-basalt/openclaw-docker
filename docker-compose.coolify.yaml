@@ -57,6 +57,7 @@ services:
     environment:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
+      - SERVICE_FQDN_OPENCLAW_GATEWAY_18789
     command: ["gateway"]
 
   socat-proxy:
