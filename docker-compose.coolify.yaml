@@ -34,7 +34,7 @@ services:
           --auth-choice "$OPENCLAW_AUTH_CHOICE" \
           --"$OPENCLAW_AUTH_CHOICE" "$OPENCLAW_API_KEY" \
           --gateway-port 18789 \
-          --gateway-bind auto \
+          --gateway-bind lan \
           --skip-skills
         
         echo "=== Onboard complete ==="
@@ -51,14 +51,22 @@ services:
     volumes:
       - openclaw-data:/home/node/.openclaw
       - openclaw-workspace:/home/node/.openclaw/workspace
-    ports:
-      - "18789:18789"
-      - "18790:18790"
     environment:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
       - SERVICE_FQDN_OPENCLAW_GATEWAY_18789
     command: ["gateway"]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.openclaw-pai.rule=Host(`openclaw-pai.jarvis.hosting.infra.ori3com.cloud`)
+      - traefik.http.routers.openclaw-pai.entrypoints=https
+      - traefik.http.routers.openclaw-pai.tls=true
+      - traefik.http.routers.openclaw-pai.tls.certresolver=letsencrypt
+      - traefik.http.services.openclaw-pai.loadbalancer.server.port=18789
+      - traefik.http.routers.openclaw-pai-http.rule=Host(`openclaw-pai.jarvis.hosting.infra.ori3com.cloud`)
+      - traefik.http.routers.openclaw-pai-http.entrypoints=http
+      - traefik.http.routers.openclaw-pai-http.middlewares=redirect-to-https@docker
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
 
   socat-proxy:
     image: alpine/socat
