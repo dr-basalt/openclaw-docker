@@ -1,5 +1,4 @@
 services:
-
   openclaw-init:
     image: ghcr.io/phioranex/openclaw-docker:latest
     restart: "no"
@@ -16,7 +15,6 @@ services:
       - |
         set -e
         CONFIG=/home/node/.openclaw/openclaw.json
-
         if [ ! -f "$$CONFIG" ]; then
           echo "Running onboard..."
           node /app/dist/index.js onboard \
@@ -32,7 +30,6 @@ services:
         else
           echo "Config exists, skipping onboard."
         fi
-
         echo "Patching controlUi..."
         cat > /tmp/patch.js << 'JSPATCH'
         const fs = require('fs');
@@ -64,6 +61,15 @@ services:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
     command: ["gateway"]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.openclaw.rule=Host(`${SERVICE_FQDN_OPENCLAW_GATEWAY}`)
+      - traefik.http.routers.openclaw.entrypoints=https
+      - traefik.http.routers.openclaw.tls=true
+      - traefik.http.routers.openclaw.tls.certresolver=letsencrypt
+      - traefik.http.services.openclaw.loadbalancer.server.port=18789
+      - traefik.http.middlewares.openclaw-ws.headers.customrequestheaders.X-Forwarded-Proto=https
+      - traefik.http.routers.openclaw.middlewares=openclaw-ws
 
   socat-proxy:
     image: alpine/socat
