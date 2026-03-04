@@ -34,7 +34,7 @@ services:
           --auth-choice "$OPENCLAW_AUTH_CHOICE" \
           --"$OPENCLAW_AUTH_CHOICE" "$OPENCLAW_API_KEY" \
           --gateway-port 18789 \
-          --gateway-bind all \
+          --gateway-bind auto \
           --skip-skills \
           --flow quickstart
         
