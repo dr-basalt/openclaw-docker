@@ -11,20 +11,34 @@ services:
     environment:
       - NODE_ENV=production
       - OPENCLAW_SKIP_SERVICE_CHECK=true
-      # Provider API keys (remplis selon ton provider dans Coolify)
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-    entrypoint: ["node", "/app/dist/index.js"]
-    command: >
-      onboard --non-interactive
-      --mode local
-      --auth-choice ${OPENCLAW_AUTH_CHOICE}
-      --${OPENCLAW_AUTH_CHOICE}-api-key ${OPENCLAW_API_KEY}
-      --gateway-port 18789
-      --gateway-bind all
-      --skip-skills
-      --flow quickstart
+      - OPENCLAW_AUTH_CHOICE=${OPENCLAW_AUTH_CHOICE}
+      - OPENCLAW_API_KEY=${OPENCLAW_API_KEY}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "=== OpenClaw Init ==="
+        echo "Auth choice: $OPENCLAW_AUTH_CHOICE"
+        
+        # Skip if already configured
+        if [ -f /home/node/.openclaw/openclaw.json ]; then
+          echo "Config already exists, skipping onboard."
+          exit 0
+        fi
+
+        echo "Running non-interactive onboard..."
+        node /app/dist/index.js onboard \
+          --non-interactive \
+          --mode local \
+          --auth-choice "$OPENCLAW_AUTH_CHOICE" \
+          --"$OPENCLAW_AUTH_CHOICE" "$OPENCLAW_API_KEY" \
+          --gateway-port 18789 \
+          --gateway-bind all \
+          --skip-skills \
+          --flow quickstart
+        
+        echo "=== Onboard complete ==="
+        cat /home/node/.openclaw/openclaw.json | grep -E '"token"|"model"' || true
 
   openclaw-gateway:
     image: ghcr.io/phioranex/openclaw-docker:latest
