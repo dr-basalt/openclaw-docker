@@ -80,7 +80,7 @@ services:
         {
           "TCP": {"443": {"HTTPS": true}},
           "Web": {
-            "${TS_CERT_DOMAIN}:443": {
+            "openclaw-pai.tail0e5c46.ts.net:443": {
               "Handlers": {"/": {"Proxy": "http://127.0.0.1:18789"}}
             }
           }
