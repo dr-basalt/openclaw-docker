@@ -24,7 +24,7 @@ services:
         # First-time onboarding (skip if already configured)
         if [ ! -f /home/node/.openclaw/openclaw.json ]; then
           echo "Running non-interactive onboard..."
-          node /app/dist/index.js onboard \
+          node /app/openclaw.mjs onboard \
             --non-interactive \
             --accept-risk \
             --mode local \
@@ -43,39 +43,57 @@ services:
 
         # Set token from env var if provided
         if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
-          node /app/dist/index.js config set gateway.auth.token "$OPENCLAW_GATEWAY_TOKEN"
+          node /app/openclaw.mjs config set gateway.auth.token "$OPENCLAW_GATEWAY_TOKEN"
           echo "Gateway token set from env var."
         fi
 
         # Disable device pairing (allows browser access without per-device approval)
-        node /app/dist/index.js config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+        node /app/openclaw.mjs config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+
+        # Trust Tailscale identity headers for tokenless access from tailnet
+        node /app/openclaw.mjs config set gateway.auth.allowTailscale true
 
         # Add gateway HTTPS URL to allowedOrigins if provided
         if [ -n "$OPENCLAW_GATEWAY_URL" ]; then
-          node /app/dist/index.js config set gateway.controlUi.allowedOrigins \
+          node /app/openclaw.mjs config set gateway.controlUi.allowedOrigins \
             "[\"http://localhost:18789\",\"http://127.0.0.1:18789\",\"$OPENCLAW_GATEWAY_URL\"]"
           echo "AllowedOrigins set: $OPENCLAW_GATEWAY_URL"
         fi
 
         echo "=== Config applied ==="
-        node -e "const d=JSON.parse(require('fs').readFileSync('/home/node/.openclaw/openclaw.json')); console.log('token:', d.gateway.auth.token); console.log('dangerouslyDisableDeviceAuth:', d.gateway.controlUi.dangerouslyDisableDeviceAuth);"
+        node -e "const d=JSON.parse(require('fs').readFileSync('/home/node/.openclaw/openclaw.json')); console.log('token:', d.gateway.auth.token); console.log('dangerouslyDisableDeviceAuth:', d.gateway.controlUi.dangerouslyDisableDeviceAuth); console.log('allowTailscale:', d.gateway.auth.allowTailscale);"
 
-  openclaw-gateway:
-    image: ghcr.io/phioranex/openclaw-docker:latest
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: openclaw-pai
     restart: unless-stopped
-    stdin_open: true
-    tty: true
-    depends_on:
-      openclaw-init:
-        condition: service_completed_successfully
-    volumes:
-      - openclaw-data:/home/node/.openclaw
-      - openclaw-workspace:/home/node/.openclaw/workspace
     environment:
-      - NODE_ENV=production
-      - OPENCLAW_SKIP_SERVICE_CHECK=true
-      - SERVICE_FQDN_OPENCLAW_GATEWAY_18789
-    command: ["gateway"]
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/var/lib/tailscale/serve.json
+      - TS_USERSPACE=false
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /var/lib/tailscale
+        cat > /var/lib/tailscale/serve.json << 'EOF'
+        {
+          "TCP": {"443": {"HTTPS": true}},
+          "Web": {
+            "${TS_CERT_DOMAIN}:443": {
+              "Handlers": {"/": {"Proxy": "http://127.0.0.1:18789"}}
+            }
+          }
+        }
+        EOF
+        exec /usr/local/bin/containerboot
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - tailscale-state:/var/lib/tailscale
     labels:
       - traefik.enable=true
       - traefik.http.routers.openclaw-pai.rule=Host(`openclaw-pai.jarvis.hosting.infra.ori3com.cloud`)
@@ -88,10 +106,30 @@ services:
       - traefik.http.routers.openclaw-pai-http.middlewares=redirect-to-https@docker
       - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
 
+  openclaw-gateway:
+    image: ghcr.io/phioranex/openclaw-docker:latest
+    restart: unless-stopped
+    network_mode: "service:tailscale"
+    stdin_open: true
+    tty: true
+    depends_on:
+      openclaw-init:
+        condition: service_completed_successfully
+      tailscale:
+        condition: service_started
+    volumes:
+      - openclaw-data:/home/node/.openclaw
+      - openclaw-workspace:/home/node/.openclaw/workspace
+    environment:
+      - NODE_ENV=production
+      - OPENCLAW_SKIP_SERVICE_CHECK=true
+      - SERVICE_FQDN_OPENCLAW_GATEWAY_18789
+    command: ["gateway"]
+
   socat-proxy:
     image: alpine/socat
     restart: unless-stopped
-    network_mode: "service:openclaw-gateway"
+    network_mode: "service:tailscale"
     depends_on:
       - openclaw-gateway
     command: "TCP-LISTEN:18790,fork,bind=0.0.0.0,reuseaddr TCP:127.0.0.1:18789"
@@ -99,3 +137,4 @@ services:
 volumes:
   openclaw-data:
   openclaw-workspace:
+  tailscale-state:
