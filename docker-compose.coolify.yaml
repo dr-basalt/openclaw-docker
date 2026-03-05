@@ -13,32 +13,52 @@ services:
       - OPENCLAW_SKIP_SERVICE_CHECK=true
       - OPENCLAW_AUTH_CHOICE=${OPENCLAW_AUTH_CHOICE}
       - OPENCLAW_API_KEY=${OPENCLAW_API_KEY}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+      - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         set -e
         echo "=== OpenClaw Init ==="
-        echo "Auth choice: $OPENCLAW_AUTH_CHOICE"
-        
-        # Skip if already configured
-        if [ -f /home/node/.openclaw/openclaw.json ]; then
+
+        # First-time onboarding (skip if already configured)
+        if [ ! -f /home/node/.openclaw/openclaw.json ]; then
+          echo "Running non-interactive onboard..."
+          node /app/dist/index.js onboard \
+            --non-interactive \
+            --accept-risk \
+            --mode local \
+            --auth-choice "$OPENCLAW_AUTH_CHOICE" \
+            --"$OPENCLAW_AUTH_CHOICE" "$OPENCLAW_API_KEY" \
+            --gateway-port 18789 \
+            --gateway-bind lan \
+            --skip-skills
+          echo "=== Onboard complete ==="
+        else
           echo "Config already exists, skipping onboard."
-          exit 0
         fi
 
-        echo "Running non-interactive onboard..."
-        node /app/dist/index.js onboard \
-          --non-interactive \
-          --accept-risk \
-          --mode local \
-          --auth-choice "$OPENCLAW_AUTH_CHOICE" \
-          --"$OPENCLAW_AUTH_CHOICE" "$OPENCLAW_API_KEY" \
-          --gateway-port 18789 \
-          --gateway-bind lan \
-          --skip-skills
-        
-        echo "=== Onboard complete ==="
-        cat /home/node/.openclaw/openclaw.json | grep -E '"token"|"model"' || true
+        # Always apply gateway config (survives redeploys)
+        echo "Applying gateway config..."
+
+        # Set token from env var if provided
+        if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
+          node /app/dist/index.js config set gateway.auth.token "$OPENCLAW_GATEWAY_TOKEN"
+          echo "Gateway token set from env var."
+        fi
+
+        # Disable device pairing (allows browser access without per-device approval)
+        node /app/dist/index.js config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+
+        # Add gateway HTTPS URL to allowedOrigins if provided
+        if [ -n "$OPENCLAW_GATEWAY_URL" ]; then
+          node /app/dist/index.js config set gateway.controlUi.allowedOrigins \
+            "[\"http://localhost:18789\",\"http://127.0.0.1:18789\",\"$OPENCLAW_GATEWAY_URL\"]"
+          echo "AllowedOrigins set: $OPENCLAW_GATEWAY_URL"
+        fi
+
+        echo "=== Config applied ==="
+        node -e "const d=JSON.parse(require('fs').readFileSync('/home/node/.openclaw/openclaw.json')); console.log('token:', d.gateway.auth.token); console.log('dangerouslyDisableDeviceAuth:', d.gateway.controlUi.dangerouslyDisableDeviceAuth);"
 
   openclaw-gateway:
     image: ghcr.io/phioranex/openclaw-docker:latest
