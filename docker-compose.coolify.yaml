@@ -54,6 +54,9 @@ services:
         # Trust Tailscale identity headers for tokenless access from tailnet
         node /app/openclaw.mjs config set gateway.auth.allowTailscale true
 
+        # Allow native apps (no Origin header, e.g. Android OkHttp) via Host-header fallback
+        node /app/openclaw.mjs config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true
+
         # Build allowedOrigins from env vars
         ORIGINS="[\"http://localhost:18789\",\"http://127.0.0.1:18789\""
         [ -n "$OPENCLAW_GATEWAY_URL" ] && ORIGINS="$ORIGINS,\"$OPENCLAW_GATEWAY_URL\""
