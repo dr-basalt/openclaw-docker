@@ -42,6 +42,9 @@ services:
         # Always apply gateway config (survives redeploys)
         echo "Applying gateway config..."
 
+        # Use token auth mode so internal operator (openclaw-cli) can connect with shared token
+        node /app/openclaw.mjs config set gateway.auth.mode token
+
         # Set token from env var if provided
         if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
           node /app/openclaw.mjs config set gateway.auth.token "$OPENCLAW_GATEWAY_TOKEN"
@@ -127,6 +130,26 @@ services:
       - OPENCLAW_SKIP_SERVICE_CHECK=true
       - SERVICE_FQDN_OPENCLAW_GATEWAY_18789
     command: ["gateway"]
+
+  openclaw-cli:
+    image: ghcr.io/phioranex/openclaw-docker:latest
+    restart: unless-stopped
+    network_mode: "service:tailscale"
+    stdin_open: true
+    tty: true
+    depends_on:
+      openclaw-init:
+        condition: service_completed_successfully
+      openclaw-gateway:
+        condition: service_started
+    volumes:
+      - openclaw-data:/home/node/.openclaw
+    environment:
+      - NODE_ENV=production
+      - OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1
+      - OPENCLAW_GATEWAY_URL=
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
+    command: ["tui"]
 
   socat-proxy:
     image: alpine/socat
