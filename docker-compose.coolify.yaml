@@ -70,23 +70,20 @@ services:
     environment:
       - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_SERVE_CONFIG=/var/lib/tailscale/serve.json
       - TS_USERSPACE=false
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        mkdir -p /var/lib/tailscale
-        cat > /var/lib/tailscale/serve.json << 'EOF'
-        {
-          "TCP": {"443": {"HTTPS": true}},
-          "Web": {
-            "openclaw-pai.tail0e5c46.ts.net:443": {
-              "Handlers": {"/": {"Proxy": "http://127.0.0.1:18789"}}
-            }
-          }
-        }
-        EOF
-        exec /usr/local/bin/containerboot
+        /usr/local/bin/containerboot &
+        BOOT_PID=$!
+        echo "Waiting for tailscale to be ready..."
+        until tailscale status --json 2>/dev/null | python3 -c "import sys,json; s=json.load(sys.stdin); exit(0 if s.get('BackendState')=='Running' else 1)" 2>/dev/null; do
+          sleep 2
+        done
+        echo "Tailscale ready, configuring HTTPS serve..."
+        tailscale serve --bg 18789
+        tailscale serve status
+        wait $BOOT_PID
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
