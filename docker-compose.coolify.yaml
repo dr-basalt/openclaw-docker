@@ -15,6 +15,7 @@ services:
       - OPENCLAW_API_KEY=${OPENCLAW_API_KEY}
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN:-}
       - OPENCLAW_GATEWAY_URL=${OPENCLAW_GATEWAY_URL:-}
+      - OPENCLAW_TAILSCALE_URL=${OPENCLAW_TAILSCALE_URL:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -53,12 +54,13 @@ services:
         # Trust Tailscale identity headers for tokenless access from tailnet
         node /app/openclaw.mjs config set gateway.auth.allowTailscale true
 
-        # Add gateway HTTPS URL to allowedOrigins if provided
-        if [ -n "$OPENCLAW_GATEWAY_URL" ]; then
-          node /app/openclaw.mjs config set gateway.controlUi.allowedOrigins \
-            "[\"http://localhost:18789\",\"http://127.0.0.1:18789\",\"$OPENCLAW_GATEWAY_URL\"]"
-          echo "AllowedOrigins set: $OPENCLAW_GATEWAY_URL"
-        fi
+        # Build allowedOrigins from env vars
+        ORIGINS="[\"http://localhost:18789\",\"http://127.0.0.1:18789\""
+        [ -n "$OPENCLAW_GATEWAY_URL" ] && ORIGINS="$ORIGINS,\"$OPENCLAW_GATEWAY_URL\""
+        [ -n "$OPENCLAW_TAILSCALE_URL" ] && ORIGINS="$ORIGINS,\"$OPENCLAW_TAILSCALE_URL\""
+        ORIGINS="$ORIGINS]"
+        node /app/openclaw.mjs config set gateway.controlUi.allowedOrigins "$ORIGINS"
+        echo "AllowedOrigins set: $ORIGINS"
 
         echo "=== Config applied ==="
         node -e "const d=JSON.parse(require('fs').readFileSync('/home/node/.openclaw/openclaw.json')); console.log('token:', d.gateway.auth.token); console.log('dangerouslyDisableDeviceAuth:', d.gateway.controlUi.dangerouslyDisableDeviceAuth); console.log('allowTailscale:', d.gateway.auth.allowTailscale);"
